@@ -1,0 +1,62 @@
+# ==============================================================================
+# @file         .gitignore
+# @project      Firebird Insight Engine (Microsip Audit)
+# @brief        Enterprise-grade Git exclusion rules.
+# ==============================================================================
+
+# --- SISTEMA (Linux/GNOME/Windows) ---
+.DS_Store
+Thumbs.db
+.directory
+*.tmp
+*.swp
+*~
+.fuse_hidden*
+
+# --- IDE (VS Code) ---
+.vscode/
+# Si prefieres compartir la configuración de VS Code con el equipo, comenta la línea de arriba y usa estas:
+#!.vscode/settings.json
+#!.vscode/tasks.json
+#!.vscode/launch.json
+
+# --- ENTORNO Y HERRAMIENTAS (Python, UV, Mise) ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+.mise.local.toml
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- CONFIGURACIÓN SENSIBLE ---
+.env
+.env.local
+.env.*.local
+# settings.py suele ser el motor, pero si contiene credenciales hardcoded:
+# settings.py 
+
+# --- DATOS DE AUDITORÍA Y REPORTES (Case-Insensitive) ---
+# Bloqueamos carpetas de salida completas
+output/
+outputs/
+logs/
+*.log
+
+# Bloqueo de extensiones binarias (Regex para cubrir mayúsculas/minúsculas)
+*.[pP][dD][fF]
+*.[xX][lL][sS][xX]
+*.[cC][sS][vV]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[pP][nN][gG]
+
+# --- BASE DE DATOS LOCALES ---
+*.fdb
+*.FDB
+*.gdb
+*.bak
