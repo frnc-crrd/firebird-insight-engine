@@ -1,4 +1,3 @@
-# dashboard/pages/02_cartera.py
 """Pagina 2: Cartera y Antiguedad.
 
 Analisis detallado de la composicion de la cartera por rangos de
@@ -22,12 +21,26 @@ sys.path.insert(0, str(ROOT))
 from dashboard.data_loader import cargar_analytics
 
 # ======================================================================
+# INICIALIZACION DE ESTADO GLOBAL (MONEDA)
+# ======================================================================
+if "moneda" not in st.session_state:
+    st.session_state.moneda = "MXN"
+
+with st.sidebar:
+    st.markdown("### Configuracion Global")
+    st.radio("Moneda de Analisis", ["MXN", "USD"], horizontal=True, key="moneda")
+    st.divider()
+
+moneda_actual = st.session_state.moneda
+sufijo = moneda_actual.lower()
+
+# ======================================================================
 # HEADER
 # ======================================================================
 st.markdown(
-    """
+    f"""
     <div class="main-header">
-        <h1>Cartera y Antiguedad</h1>
+        <h1>Cartera y Antiguedad ({moneda_actual})</h1>
         <p>Distribucion de la cartera por rangos de tiempo y analisis de vencimientos</p>
     </div>
     """,
@@ -35,7 +48,7 @@ st.markdown(
 )
 
 # ======================================================================
-# CARGA DE DATOS
+# CARGA DE DATOS Y LIMPIEZA
 # ======================================================================
 try:
     analytics = cargar_analytics()
@@ -43,11 +56,21 @@ except Exception as e:
     st.error(f"[ERROR] al cargar datos: {e}")
     st.stop()
 
-antiguedad      = analytics.get("antiguedad_cartera", pd.DataFrame())
-por_cliente     = analytics.get("antiguedad_por_cliente", pd.DataFrame())
-vencida_vigente = analytics.get("cartera_vencida_vs_vigente", pd.DataFrame())
-resumen_cliente = analytics.get("resumen_por_cliente", pd.DataFrame())
-tendencia_mxn   = analytics.get("tendencia_mensual", pd.DataFrame())
+# Extraccion dinamica por moneda
+antiguedad      = analytics.get(f"antiguedad_cartera_{sufijo}", pd.DataFrame())
+por_cliente     = analytics.get(f"antiguedad_por_cliente_{sufijo}", pd.DataFrame())
+vencida_vigente = analytics.get(f"cartera_vencida_vs_vigente_{sufijo}", pd.DataFrame())
+tendencia_mxn   = analytics.get(f"tendencia_mensual_{sufijo}", pd.DataFrame())
+
+# Limpieza quirurgica: Eliminar filas "TOTAL" para evitar duplicacion de saldos
+if not antiguedad.empty and "RANGO_ANTIGUEDAD" in antiguedad.columns:
+    antiguedad = antiguedad[antiguedad["RANGO_ANTIGUEDAD"] != "TOTAL"].copy()
+
+if not por_cliente.empty and "NOMBRE_CLIENTE" in por_cliente.columns:
+    por_cliente = por_cliente[por_cliente["NOMBRE_CLIENTE"] != "TOTAL"].copy()
+
+if not vencida_vigente.empty and "ESTATUS_VENCIMIENTO" in vencida_vigente.columns:
+    vencida_vigente = vencida_vigente[vencida_vigente["ESTATUS_VENCIMIENTO"] != "TOTAL"].copy()
 
 # ======================================================================
 # SECCION 1: METRICAS DE ANTIGUEDAD
@@ -64,8 +87,7 @@ if not antiguedad.empty:
     with m2:
         st.metric("Total Documentos", f"{n_documentos:,}")
     with m3:
-        # Cartera vencida = todo excepto "Vigente"
-        vencida = antiguedad[antiguedad["RANGO_ANTIGUEDAD"] != "Vigente"]["SALDO_PENDIENTE"].sum()
+        vencida = antiguedad[~antiguedad["RANGO_ANTIGUEDAD"].str.contains("VIGENTE", case=False, na=False)]["SALDO_PENDIENTE"].sum()
         st.metric("Total Vencido", f"${vencida:,.2f}")
     with m4:
         pct_vencido = (vencida / total_cartera * 100) if total_cartera > 0 else 0
@@ -79,17 +101,19 @@ if not antiguedad.empty:
 graf_col1, graf_col2 = st.columns(2)
 
 with graf_col1:
-    st.subheader("Importe por Rango de Antiguedad")
+    st.subheader(f"Importe por Rango de Antiguedad ({moneda_actual})")
     if not antiguedad.empty:
         colores = {
-            "Vigente":          "#22c55e",
-            "0-30 dias":        "#3b82f6",
-            "31-60 dias":       "#f59e0b",
-            "61-90 dias":       "#f97316",
-            "91-120 dias":      "#ef4444",
-            "Mas de 120 dias":  "#7f1d1d",
-            "Sin fecha":        "#94a3b8",
+            "VIGENTE: MÁS DE 1 DÍA": "#16a34a",
+            "VIGENTE: VENCE MAÑANA": "#22c55e",
+            "VIGENTE: VENCE HOY":    "#84cc16",
+            "VENCIDO: 1-30 DÍAS":    "#3b82f6",
+            "VENCIDO: 31-60 DÍAS":   "#f59e0b",
+            "VENCIDO: 61-90 DÍAS":   "#ea580c",
+            "VENCIDO: 91-120 DÍAS":  "#dc2626",
+            "VENCIDO: MÁS DE 120 DÍAS": "#991b1b",
         }
+        
         fig = px.bar(
             antiguedad,
             x="RANGO_ANTIGUEDAD",
@@ -100,16 +124,17 @@ with graf_col1:
             labels={"SALDO_PENDIENTE": "Importe ($)", "RANGO_ANTIGUEDAD": "Rango"},
         )
         fig.update_traces(
-            texttemplate="%{text:.1f}%",
+            texttemplate="%{text:.1%}",
             textposition="outside",
+            textfont=dict(color="#334155")
         )
         fig.update_layout(
             showlegend=False,
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=20, b=40, l=10, r=10),
-            xaxis=dict(showgrid=False, title=""),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="Importe ($)"),
+            xaxis=dict(showgrid=False, title="", tickfont=dict(color="#334155")),
+            yaxis=dict(showgrid=True, gridcolor="#e2e8f0", title="Importe ($)", tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
         )
         st.plotly_chart(fig, width="stretch")
 
@@ -126,8 +151,8 @@ with graf_col2:
         )
         fig2.update_layout(
             margin=dict(t=20, b=40, l=10, r=10),
-            paper_bgcolor="white",
-            legend=dict(orientation="v", x=1.0, y=0.5),
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="v", x=1.0, y=0.5, font=dict(color="#334155")),
         )
         fig2.update_traces(textinfo="percent+label", textfont_size=11)
         st.plotly_chart(fig2, width="stretch")
@@ -147,7 +172,7 @@ if not antiguedad.empty:
             display_ant[col] = display_ant[col].apply(lambda x: f"${float(x):,.2f}")
 
     if "PCT_DEL_TOTAL" in display_ant.columns:
-        display_ant["PCT_DEL_TOTAL"] = display_ant["PCT_DEL_TOTAL"].apply(lambda x: f"{x:.2f}%")
+        display_ant["PCT_DEL_TOTAL"] = display_ant["PCT_DEL_TOTAL"].apply(lambda x: f"{x * 100:.2f}%" if isinstance(x, float) else str(x))
 
     st.dataframe(
         display_ant,
@@ -177,21 +202,17 @@ if not vencida_vigente.empty:
             importe = row.get("SALDO_PENDIENTE", 0)
             pct     = row.get("PCT_DEL_TOTAL", 0)
             ndocs   = row.get("NUM_FACTURAS_PENDIENTES", 0)
-            dias_p  = row.get("DIAS_VENCIDO_PROMEDIO", 0)
-
-            if estatus == "VENCIDO":
+            
+            if "VENCIDA" in str(estatus).upper():
                 css = "alert-critico"
-                icono = "[CRITICO]"
             else:
                 css = "alert-ok"
-                icono = "[OK]"
 
             st.markdown(
                 f'<div class="{css}">'
-                f'{icono} <strong>{estatus}</strong><br>'
-                f'Importe: <strong>${importe:,.2f}</strong> ({pct:.1f}%)<br>'
-                f'Documentos: {int(ndocs):,} | '
-                f'Dias vencido prom.: {dias_p:.0f}'
+                f'<strong>{estatus}</strong><br>'
+                f'Importe: <strong>${importe:,.2f}</strong> ({pct * 100:.1f}%)<br>'
+                f'Documentos: {int(ndocs):,}'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -202,21 +223,22 @@ if not vencida_vigente.empty:
             x="ESTATUS_VENCIMIENTO",
             y="SALDO_PENDIENTE",
             color="ESTATUS_VENCIMIENTO",
-            color_discrete_map={"VENCIDO": "#ef4444", "VIGENTE": "#22c55e"},
+            color_discrete_map={"FACTURAS VENCIDAS": "#dc2626", "FACTURAS VIGENTES": "#16a34a"},
             text="SALDO_PENDIENTE",
             labels={"SALDO_PENDIENTE": "Importe ($)", "ESTATUS_VENCIMIENTO": ""},
         )
         fig_vv.update_traces(
             texttemplate="$%{text:,.0f}",
             textposition="outside",
+            textfont=dict(color="#334155")
         )
         fig_vv.update_layout(
             showlegend=False,
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=20, l=10, r=10),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
-            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155")),
+            xaxis=dict(showgrid=False, tickfont=dict(color="#334155")),
         )
         st.plotly_chart(fig_vv, width="stretch")
 
@@ -228,7 +250,6 @@ st.divider()
 st.subheader("Antiguedad Desglosada por Cliente")
 
 if not por_cliente.empty:
-    # Filtro de busqueda
     busqueda = st.text_input("Buscar cliente", placeholder="Escribe parte del nombre...")
 
     df_pivote = por_cliente.copy()
@@ -244,7 +265,7 @@ if not por_cliente.empty:
     )
     st.caption(f"Mostrando {len(df_pivote):,} de {len(por_cliente):,} clientes")
 else:
-    st.info("Sin datos de antiguedad por cliente disponibles.")
+    st.info("Sin datos de antiguedad por cliente disponibles en esta moneda.")
 
 st.divider()
 
@@ -264,17 +285,18 @@ if not tendencia_mxn.empty:
             y="NUM_FACTURAS",
             color="ESTADO",
             barmode="stack",
-            color_discrete_map={"COBRADAS": "#22c55e", "PENDIENTES": "#f97316"},
+            color_discrete_map={"COBRADAS": "#16a34a", "PENDIENTES": "#f97316"},
             text="NUM_FACTURAS",
-            labels={"NUM_FACTURAS": "Cantidad", "PERIODO": "Periodo (Ano-Mes)", "ESTADO": "Estado"}
+            labels={"NUM_FACTURAS": "Cantidad", "PERIODO": "Periodo", "ESTADO": "Estado"}
         )
         fig_bar.update_traces(textposition="inside", textfont_size=11)
         fig_bar.update_layout(
-            title="Comparacion Mensual: Cobradas vs. Pendientes",
-            plot_bgcolor="white", paper_bgcolor="white",
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-            xaxis=dict(showgrid=False, tickangle=-45),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+            title=dict(text="Comparacion Mensual: Cobradas vs. Pendientes", font=dict(color="#334155")),
+            plot_bgcolor="rgba(0,0,0,0)", 
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(color="#334155")),
+            xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(color="#334155")),
+            yaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
             margin=dict(t=50, b=20, l=10, r=10)
         )
         st.plotly_chart(fig_bar, width="stretch")
@@ -303,17 +325,18 @@ if not tendencia_mxn.empty:
                 text=matriz.values,
                 texttemplate="%{text}",
                 showscale=True,
-                colorbar=dict(title="Facturas<br>Pendientes")
+                colorbar=dict(title="Facturas<br>Pendientes", tickfont=dict(color="#334155"), title_font=dict(color="#334155"))
             ))
             fig_cal.update_layout(
-                title="Mapa de Calor: Facturas Pendientes",
-                yaxis=dict(autorange="reversed", title="Ano"),
-                xaxis=dict(title="", side="top"),
-                plot_bgcolor="white", paper_bgcolor="white",
+                title=dict(text="Mapa de Calor: Facturas Pendientes", font=dict(color="#334155")),
+                yaxis=dict(autorange="reversed", title="Ano", tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
+                xaxis=dict(title="", side="top", tickfont=dict(color="#334155")),
+                plot_bgcolor="rgba(0,0,0,0)", 
+                paper_bgcolor="rgba(0,0,0,0)",
                 margin=dict(t=50, b=20, l=10, r=10)
             )
             st.plotly_chart(fig_cal, width="stretch")
         else:
             st.success("No hay facturas pendientes en el historial analizado.")
 else:
-    st.info("Sin datos de tendencia historica disponibles.")
+    st.info("Sin datos de tendencia historica disponibles en esta moneda.")

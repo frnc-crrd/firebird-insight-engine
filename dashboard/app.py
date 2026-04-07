@@ -1,7 +1,7 @@
 """Punto de entrada del dashboard CxC.
 
 Configura la app de Streamlit con navegacion multipagina,
-tema corporativo forzado y sidebar con informacion del sistema.
+tema corporativo definido por config.toml y sidebar.
 
 Ejecucion:
     streamlit run dashboard/app.py
@@ -61,8 +61,8 @@ st.markdown(
 
         /* Tarjetas de metricas */
         [data-testid="metric-container"] {
-            background-color: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
             border-radius: 12px;
             padding: 1.25rem;
             box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -71,63 +71,74 @@ st.markdown(
         [data-testid="metric-container"]:hover {
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             transform: translateY(-2px);
-            border-color: #cbd5e1 !important;
+            border-color: #cbd5e1;
         }
         [data-testid="metric-container"] label {
-            color: #64748b !important;
-            font-weight: 600 !important;
-            font-size: 0.9rem !important;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
             text-transform: uppercase;
         }
         [data-testid="metric-container"] div[data-testid="stMetricValue"] {
-            color: #0f172a !important;
-            font-weight: 700 !important;
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        /* Contenedores de Tablas y Graficas */
+        [data-testid="stDataFrame"], .stPlotlyChart {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
         }
 
         /* Botones de accion */
         .stButton > button {
             border-radius: 8px;
-            border: 1px solid #2563eb !important;
-            color: #ffffff !important;
-            background-color: #2563eb !important;
+            border: 1px solid #2563eb;
+            color: #ffffff;
+            background-color: #2563eb;
             font-weight: 600;
+            padding: 0.5rem 1rem;
             transition: all 0.2s;
         }
         .stButton > button:hover {
-            background-color: #1d4ed8 !important;
-            border-color: #1d4ed8 !important;
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
         }
 
         /* Alertas personalizadas */
         .alert-critico {
-            background-color: #fef2f2 !important;
-            border-left: 4px solid #dc2626 !important;
+            background-color: #fef2f2;
+            border-left: 4px solid #dc2626;
             padding: 1rem;
             border-radius: 0 8px 8px 0;
             margin: 0.75rem 0;
-            color: #991b1b !important;
+            color: #991b1b;
             font-weight: 500;
         }
         .alert-warning {
-            background-color: #fffbeb !important;
-            border-left: 4px solid #d97706 !important;
+            background-color: #fffbeb;
+            border-left: 4px solid #d97706;
             padding: 1rem;
             border-radius: 0 8px 8px 0;
             margin: 0.75rem 0;
-            color: #92400e !important;
+            color: #92400e;
             font-weight: 500;
         }
         .alert-ok {
-            background-color: #f0fdf4 !important;
-            border-left: 4px solid #16a34a !important;
+            background-color: #f0fdf4;
+            border-left: 4px solid #16a34a;
             padding: 1rem;
             border-radius: 0 8px 8px 0;
             margin: 0.75rem 0;
-            color: #166534 !important;
+            color: #166534;
             font-weight: 500;
         }
 
-        /* Ocultar elementos nativos */
+        /* Ocultar footer de Streamlit */
         footer { visibility: hidden; }
         #MainMenu { visibility: hidden; }
     </style>

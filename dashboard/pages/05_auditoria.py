@@ -1,4 +1,3 @@
-# dashboard/pages/05_auditoria.py
 """Pagina 5: Auditoria de Anomalias.
 
 Resultados de las reglas de negocio aplicadas sobre los datos crudos:
@@ -42,7 +41,6 @@ except Exception as e:
     st.error(f"[ERROR] al cargar auditoria: {e}")
     st.stop()
 
-# CORRECCION APLICADA: Extraccion de variables ajustada a la clase AuditResult actual
 resumen          = audit.resumen
 atipicos         = audit.importes_atipicos
 sin_cliente      = audit.sin_tipo_cliente
@@ -50,6 +48,10 @@ sin_vendedor     = audit.sin_vendedor
 cancelados       = audit.documentos_cancelados
 venc_criticos    = audit.moras_atipicas
 calidad_datos    = audit.calidad_datos
+
+# Limpieza estandar (aunque atipica en raw data, previene inyecciones sumatorias)
+if not atipicos.empty and "NOMBRE_CLIENTE" in atipicos.columns:
+    atipicos = atipicos[atipicos["NOMBRE_CLIENTE"] != "TOTAL"].copy()
 
 # ======================================================================
 # SECCION 1: RESUMEN EJECUTIVO DE AUDITORIA
@@ -85,7 +87,6 @@ else:
 
 st.write("")
 
-# Tarjetas por tipo de hallazgo
 col1, col2, col3, col4, col5 = st.columns(5)
 
 hallazgos_config = [
@@ -124,17 +125,17 @@ if total_hallazgos > 0:
             x="Tipo",
             y="Cantidad",
             color="Tipo",
-            color_discrete_sequence=["#ef4444", "#f97316", "#f59e0b", "#94a3b8", "#3b82f6"],
+            color_discrete_sequence=["#dc2626", "#ea580c", "#d97706", "#94a3b8", "#2563eb"],
             text="Cantidad",
         )
-        fig.update_traces(textposition="outside")
+        fig.update_traces(textposition="outside", textfont=dict(color="#334155"))
         fig.update_layout(
             showlegend=False,
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=30, b=20, l=10, r=10),
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+            xaxis=dict(showgrid=False, tickfont=dict(color="#334155")),
+            yaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155")),
         )
         st.plotly_chart(fig, width="stretch")
 
@@ -143,8 +144,6 @@ if total_hallazgos > 0:
 # ======================================================================
 # SECCION 3: DETALLE POR TIPO DE HALLAZGO
 # ======================================================================
-
-# Tabs para cada tipo de hallazgo (duplicados eliminado)
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Importes Atipicos",
     "Sin Tipo Cliente",
@@ -153,7 +152,6 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Moras Atipicas",
     "Calidad de Datos",
 ])
-
 
 # -- TAB 1: IMPORTES ATIPICOS -------------------------------------------
 with tab1:
@@ -169,25 +167,27 @@ with tab1:
             "IMPORTE", "ZSCORE_IMPORTE", "MOTIVO",
         ] if c in atipicos.columns]
         display_at = atipicos[cols_mostrar].copy()
+        
         if "IMPORTE" in display_at.columns:
-            display_at["IMPORTE"] = display_at["IMPORTE"].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
+            display_at["IMPORTE"] = pd.to_numeric(display_at["IMPORTE"], errors="coerce").fillna(0).apply(lambda x: f"${x:,.2f}")
         if "ZSCORE_IMPORTE" in display_at.columns:
-            display_at["ZSCORE_IMPORTE"] = display_at["ZSCORE_IMPORTE"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "")
+            display_at["ZSCORE_IMPORTE"] = pd.to_numeric(display_at["ZSCORE_IMPORTE"], errors="coerce").fillna(0).apply(lambda x: f"{x:.2f}")
 
         st.dataframe(display_at, width="stretch", hide_index=True)
         st.caption(f"{len(atipicos):,} importes atipicos detectados")
 
-        # Mini grafica de distribucion
         if "IMPORTE" in atipicos.columns and len(atipicos) > 1:
             fig_dist = px.box(
                 atipicos,
-                y="IMPORTE",
+                y=pd.to_numeric(atipicos["IMPORTE"], errors="coerce").fillna(0),
                 title="Distribucion de importes atipicos",
-                color_discrete_sequence=["#ef4444"],
+                color_discrete_sequence=["#dc2626"],
             )
             fig_dist.update_layout(
-                plot_bgcolor="white", paper_bgcolor="white",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 margin=dict(t=40, b=20, l=10, r=10), height=250,
+                yaxis=dict(gridcolor="#e2e8f0", tickfont=dict(color="#334155")),
+                title_font=dict(color="#334155")
             )
             st.plotly_chart(fig_dist, width="stretch")
     else:
@@ -196,56 +196,55 @@ with tab1:
 # -- TAB 2: SIN TIPO CLIENTE -------------------------------------------------
 with tab2:
     st.markdown("#### Documentos asociados a un cliente sin tipo asignado")
-    st.markdown(
-        "Afecta la clasificacion del analisis. Verifique la captura en Microsip."
-    )
+    st.markdown("Afecta la clasificacion del analisis. Verifique la captura en Microsip.")
     if not sin_cliente.empty:
         cols_mostrar = [c for c in [
             "FOLIO", "CONCEPTO", "FECHA_EMISION", "IMPORTE",
             "NOMBRE_CLIENTE", "TIPO_CLIENTE", "VENDEDOR", "MOTIVO",
         ] if c in sin_cliente.columns]
-        st.dataframe(
-            sin_cliente[cols_mostrar],
-            width="stretch",
-            hide_index=True,
-        )
+        
+        display_sc = sin_cliente[cols_mostrar].copy()
+        if "IMPORTE" in display_sc.columns:
+            display_sc["IMPORTE"] = pd.to_numeric(display_sc["IMPORTE"], errors="coerce").fillna(0).apply(lambda x: f"${x:,.2f}")
+            
+        st.dataframe(display_sc, width="stretch", hide_index=True)
     else:
         st.success("[OK] Todos los clientes tienen tipo asignado.")
         
 # -- TAB 3: SIN VENDEDOR -------------------------------------------------
 with tab3:
     st.markdown("#### Documentos asociados a un cliente sin vendedor asignado")
-    st.markdown(
-        "Afecta los reportes y graficas de la fuerza de ventas. Verifique la captura en Microsip."
-    )
+    st.markdown("Afecta los reportes y graficas de la fuerza de ventas. Verifique la captura en Microsip.")
     if not sin_vendedor.empty:
         cols_mostrar = [c for c in [
             "FOLIO", "CONCEPTO", "FECHA_EMISION", "IMPORTE",
             "NOMBRE_CLIENTE", "TIPO_CLIENTE", "VENDEDOR", "MOTIVO",
         ] if c in sin_vendedor.columns]
-        st.dataframe(
-            sin_vendedor[cols_mostrar],
-            width="stretch",
-            hide_index=True,
-        )
+        
+        display_sv = sin_vendedor[cols_mostrar].copy()
+        if "IMPORTE" in display_sv.columns:
+            display_sv["IMPORTE"] = pd.to_numeric(display_sv["IMPORTE"], errors="coerce").fillna(0).apply(lambda x: f"${x:,.2f}")
+            
+        st.dataframe(display_sv, width="stretch", hide_index=True)
     else:
         st.success("[OK] Todos los clientes tienen vendedor asignado.")
 
 # -- TAB 4: CANCELADOS --------------------------------------------------
 with tab4:
     st.markdown("#### Documentos cancelados en Microsip")
-    st.markdown(
-        "Estos documentos estan marcados como cancelados en el sistema. "
-        "El pipeline los excluye de los calculos, pero se listan aqui para referencia."
-    )
+    st.markdown("El pipeline los excluye de los calculos transaccionales.")
     if not cancelados.empty:
         cols_mostrar = [c for c in [
             "NOMBRE_CLIENTE", "FOLIO", "CONCEPTO", "FECHA_EMISION",
             "IMPORTE", "DIAS_HASTA_CANCELACION", "MOTIVO",
         ] if c in cancelados.columns]
         display_can = cancelados[cols_mostrar].copy()
+        
         if "IMPORTE" in display_can.columns:
-            display_can["IMPORTE"] = display_can["IMPORTE"].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
+            display_can["IMPORTE"] = pd.to_numeric(display_can["IMPORTE"], errors="coerce").fillna(0).apply(lambda x: f"${x:,.2f}")
+        if "DIAS_HASTA_CANCELACION" in display_can.columns:
+            display_can["DIAS_HASTA_CANCELACION"] = pd.to_numeric(display_can["DIAS_HASTA_CANCELACION"], errors="coerce").fillna(0).astype(int)
+            
         st.dataframe(display_can, width="stretch", hide_index=True)
         st.caption(f"{len(cancelados):,} documentos cancelados")
     else:
@@ -254,13 +253,12 @@ with tab4:
 # -- TAB 5: MORAS ATIPICAS ---------------------------------------
 with tab5:
     st.markdown("#### Cargos con mora significativamente alta (Z-Score Elevado)")
-    st.markdown(
-        "Estas facturas no solo estan vencidas, sino que su retraso es "
-        "estadisticamente anormal comparado con la mora del resto de la cartera."
-    )
+    st.markdown("Retraso estadisticamente anormal comparado con el resto de la cartera.")
     if not venc_criticos.empty:
-        # Agrupar por cliente para visualizacion
         if "NOMBRE_CLIENTE" in venc_criticos.columns and "IMPORTE" in venc_criticos.columns:
+            venc_criticos["IMPORTE"] = pd.to_numeric(venc_criticos["IMPORTE"], errors="coerce").fillna(0)
+            venc_criticos["DELTA_MORA"] = pd.to_numeric(venc_criticos["DELTA_MORA"], errors="coerce").fillna(0)
+            
             resumen_vc = (
                 venc_criticos.groupby("NOMBRE_CLIENTE")
                 .agg(
@@ -306,15 +304,11 @@ with tab5:
 # -- TAB 6: CALIDAD DE DATOS --------------------------------------------
 with tab6:
     st.markdown("#### Reporte de calidad por columna")
-    st.markdown(
-        "Estado de completitud de cada columna del dataset. "
-        "Columnas con alto porcentaje de nulos pueden indicar configuracion "
-        "incompleta en Microsip o campos no utilizados."
-    )
+    st.markdown("Estado de completitud. Alto porcentaje de nulos puede indicar configuracion incompleta en Microsip.")
     if not calidad_datos.empty:
         display_cd = calidad_datos.copy()
         if "PCT_NULOS" in display_cd.columns:
-            display_cd["PCT_NULOS"] = display_cd["PCT_NULOS"].apply(lambda x: f"{x:.1f}%")
+            display_cd["PCT_NULOS"] = pd.to_numeric(display_cd["PCT_NULOS"], errors="coerce").fillna(0).apply(lambda x: f"{x:.1f}%")
 
         st.dataframe(
             display_cd,
@@ -330,9 +324,8 @@ with tab6:
             },
         )
 
-        # Alertar columnas con > 50% nulos
-        if "PCT_NULOS" in calidad_datos.columns:
-            criticas = calidad_datos[calidad_datos["NULOS"] / calidad_datos["TOTAL_REGISTROS"] > 0.5]
+        if "PCT_NULOS_VAL" in calidad_datos.columns:
+            criticas = calidad_datos[calidad_datos["NULOS"] / pd.to_numeric(calidad_datos["TOTAL_REGISTROS"], errors='coerce').fillna(1) > 0.5]
             if not criticas.empty:
                 st.warning(
                     f"[WARN] {len(criticas)} columna(s) con mas del 50% de valores nulos: "

@@ -1,4 +1,3 @@
-# dashboard/pages/03_clientes.py
 """Pagina 3: Analisis por Cliente.
 
 Vista detallada de cada cliente: saldo, facturas vivas, historial
@@ -28,12 +27,26 @@ from dashboard.data_loader import (
 )
 
 # ======================================================================
+# INICIALIZACION DE ESTADO GLOBAL (MONEDA)
+# ======================================================================
+if "moneda" not in st.session_state:
+    st.session_state.moneda = "MXN"
+
+with st.sidebar:
+    st.markdown("### Configuracion Global")
+    st.radio("Moneda de Analisis", ["MXN", "USD"], horizontal=True, key="moneda")
+    st.divider()
+
+moneda_actual = st.session_state.moneda
+sufijo = moneda_actual.lower()
+
+# ======================================================================
 # HEADER
 # ======================================================================
 st.markdown(
-    """
+    f"""
     <div class="main-header">
-        <h1>Analisis por Cliente</h1>
+        <h1>Analisis por Cliente ({moneda_actual})</h1>
         <p>Detalle de saldos, morosidad y facturas pendientes por cliente</p>
     </div>
     """,
@@ -51,12 +64,22 @@ except Exception as e:
     st.error(f"Error al cargar datos: {e}")
     st.stop()
 
-resumen_clientes   = analytics.get("resumen_por_cliente", pd.DataFrame())
-resumen_vendedores = analytics.get("resumen_por_vendedor", pd.DataFrame())
-morosidad_cliente  = kpis_data.get("kpis_morosidad_cliente", pd.DataFrame())
-limite_credito     = kpis_data.get("kpis_limite_credito", pd.DataFrame())
+# Extraccion dinamica, con fallback al esquema genérico si no existe
+resumen_clientes   = analytics.get(f"resumen_por_cliente_{sufijo}", analytics.get("resumen_por_cliente", pd.DataFrame()))
+resumen_vendedores = analytics.get(f"resumen_por_vendedor_{sufijo}", analytics.get("resumen_por_vendedor", pd.DataFrame()))
+morosidad_cliente  = kpis_data.get(f"kpis_morosidad_cliente_{sufijo}", pd.DataFrame())
+limite_credito     = kpis_data.get(f"kpis_limite_credito_{sufijo}", pd.DataFrame())
 facturas_vivas     = reporte_data.get("movimientos_abiertos_cxc", pd.DataFrame())
-reporte_cxc        = reporte_data.get("reporte_cxc", pd.DataFrame())
+
+# Limpieza quirurgica: Eliminar filas sumatorias "TOTAL"
+if not resumen_clientes.empty and "NOMBRE_CLIENTE" in resumen_clientes.columns:
+    resumen_clientes = resumen_clientes[resumen_clientes["NOMBRE_CLIENTE"] != "TOTAL"].copy()
+if not morosidad_cliente.empty and "NOMBRE_CLIENTE" in morosidad_cliente.columns:
+    morosidad_cliente = morosidad_cliente[morosidad_cliente["NOMBRE_CLIENTE"] != "TOTAL"].copy()
+if not resumen_vendedores.empty and "VENDEDOR" in resumen_vendedores.columns:
+    resumen_vendedores = resumen_vendedores[resumen_vendedores["VENDEDOR"] != "TOTAL"].copy()
+if not limite_credito.empty and "NOMBRE_CLIENTE" in limite_credito.columns:
+    limite_credito = limite_credito[limite_credito["NOMBRE_CLIENTE"] != "TOTAL"].copy()
 
 # ======================================================================
 # FILTROS EN SIDEBAR
@@ -93,7 +116,6 @@ with st.sidebar:
 # APLICAR FILTROS
 # ======================================================================
 def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
-    """Aplica los filtros del sidebar a cualquier DataFrame con NOMBRE_CLIENTE."""
     if df.empty:
         return df
     resultado = df.copy()
@@ -109,6 +131,13 @@ def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
 morosidad_filtrada = _aplicar_filtros(morosidad_cliente)
 facturas_filtradas = _aplicar_filtros(facturas_vivas)
 
+# Saneamiento de MONEDA en la tabla cruda si el selector de moneda está activo
+if not facturas_filtradas.empty and "MONEDA" in facturas_filtradas.columns:
+    if moneda_actual == "MXN":
+        facturas_filtradas = facturas_filtradas[facturas_filtradas["MONEDA"] == "Moneda Nacional"]
+    else:
+        facturas_filtradas = facturas_filtradas[facturas_filtradas["MONEDA"] != "Moneda Nacional"]
+
 if solo_con_saldo and not morosidad_filtrada.empty and "SALDO_PENDIENTE" in morosidad_filtrada.columns:
     morosidad_filtrada = morosidad_filtrada[morosidad_filtrada["SALDO_PENDIENTE"] > 0]
 
@@ -119,7 +148,6 @@ if filtro_mora and not facturas_filtradas.empty and "CATEGORIA_MORA" in facturas
 # SANITIZACION DE DATOS
 # ======================================================================
 def _formatear_porcentaje(x: Any) -> str:
-    """Aplica formato robusto a datos de porcentaje."""
     try:
         if pd.isna(x) or str(x).strip() == "":
             return "0.0%"
@@ -128,13 +156,12 @@ def _formatear_porcentaje(x: Any) -> str:
     except (ValueError, TypeError):
         return str(x)
 
-def _formatear_moneda(x: Any) -> str:
-    """Aplica formato robusto a datos monetarios."""
+def _formatear_moneda_seguro(x: Any) -> str:
     try:
         if pd.isna(x) or str(x).strip() == "":
             return "$0.00"
-        val = str(x).replace('$', '').replace(',', '').strip()
-        return f"${float(val):,.2f}"
+        val_str = str(x).replace('$', '').replace(',', '').strip()
+        return f"${float(val_str):,.2f}"
     except (ValueError, TypeError):
         return str(x)
 
@@ -159,10 +186,8 @@ if not morosidad_filtrada.empty:
 
     st.divider()
 
-    # Tabla principal de morosidad por cliente
     display_mor = morosidad_filtrada.copy()
     
-    # Sanitizacion estricta para PyArrow
     if "DIAS_VENCIDO_MAX" in display_mor.columns:
         display_mor["DIAS_VENCIDO_MAX"] = pd.to_numeric(display_mor["DIAS_VENCIDO_MAX"], errors="coerce").fillna(0).astype(int)
     if "NUM_FACTURAS" in display_mor.columns:
@@ -172,7 +197,7 @@ if not morosidad_filtrada.empty:
 
     for col in ["SALDO_PENDIENTE", "SALDO_VIGENTE", "SALDO_VENCIDO"]:
         if col in display_mor.columns:
-            display_mor[col] = display_mor[col].apply(_formatear_moneda)
+            display_mor[col] = display_mor[col].apply(_formatear_moneda_seguro)
     
     if "PCT_VENCIDO" in display_mor.columns:
         display_mor["PCT_VENCIDO"] = display_mor["PCT_VENCIDO"].apply(_formatear_porcentaje)
@@ -203,10 +228,8 @@ st.subheader("Top 15 Clientes - Vencido vs Vigente")
 if not morosidad_filtrada.empty:
     cols_req = ["NOMBRE_CLIENTE", "SALDO_VIGENTE", "SALDO_VENCIDO"]
     if all(c in morosidad_filtrada.columns for c in cols_req):
-        # Utilizando la columna correcta SALDO_PENDIENTE para determinar los 15 mayores
         top15 = morosidad_filtrada.nlargest(15, "SALDO_PENDIENTE")[cols_req].copy()
         
-        # Saneamiento de datos antes de graficar
         for col in ["SALDO_VIGENTE", "SALDO_VENCIDO"]:
             top15[col] = pd.to_numeric(top15[col], errors='coerce').fillna(0)
             
@@ -228,15 +251,15 @@ if not morosidad_filtrada.empty:
             color="Tipo",
             orientation="h",
             color_discrete_map={"Vigente": "#16a34a", "Vencido": "#dc2626"},
-            labels={"NOMBRE_CLIENTE": "", "Importe": "Importe ($)"},
+            labels={"NOMBRE_CLIENTE": "", "Importe": f"Importe ({moneda_actual})"},
             barmode="stack",
         )
         fig.update_layout(
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=20, b=20, l=150, r=20),
             yaxis=dict(autorange="reversed", tickfont=dict(color="#334155")),
-            xaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155")),
+            xaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
             legend=dict(orientation="h", y=-0.15, x=0.3, font=dict(color="#334155")),
         )
         st.plotly_chart(fig, width="stretch")
@@ -275,7 +298,7 @@ if not limite_credito.empty:
     display_lc = lc_filtrado.copy()
     for col in ["SALDO", "LIMITE_CREDITO", "DISPONIBLE"]:
         if col in display_lc.columns:
-            display_lc[col] = display_lc[col].apply(_formatear_moneda)
+            display_lc[col] = display_lc[col].apply(_formatear_moneda_seguro)
             
     if "UTILIZACION_PCT" in display_lc.columns:
         display_lc["UTILIZACION_PCT"] = display_lc["UTILIZACION_PCT"].apply(_formatear_porcentaje)
@@ -317,7 +340,7 @@ if not facturas_filtradas.empty:
 
     for col in ["IMPORTE", "SALDO_FACTURA"]:
         if col in display_fv.columns:
-            display_fv[col] = display_fv[col].apply(_formatear_moneda)
+            display_fv[col] = display_fv[col].apply(_formatear_moneda_seguro)
 
     st.dataframe(
         display_fv,
@@ -345,7 +368,6 @@ if not resumen_vendedores.empty:
     st.divider()
     st.subheader("Cartera por Vendedor")
     
-    # Saneamiento previo al grafico
     vend_df = resumen_vendedores.head(10).copy()
     if "SALDO_PENDIENTE" in vend_df.columns:
         vend_df["SALDO_PENDIENTE"] = pd.to_numeric(vend_df["SALDO_PENDIENTE"], errors='coerce').fillna(0)
@@ -357,15 +379,15 @@ if not resumen_vendedores.empty:
         color="SALDO_PENDIENTE",
         color_continuous_scale="Blues",
         text_auto=".2s",
-        labels={"VENDEDOR": "Vendedor", "SALDO_PENDIENTE": "Saldo Pendiente ($)"},
+        labels={"VENDEDOR": "Vendedor", "SALDO_PENDIENTE": f"Saldo Pendiente ({moneda_actual})"},
     )
     fig_vend.update_layout(
         showlegend=False,
         coloraxis_showscale=False,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=20, b=60, l=10, r=10),
-        xaxis=dict(showgrid=False, tickfont=dict(color="#334155")),
-        yaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155")),
+        xaxis=dict(showgrid=False, tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
+        yaxis=dict(showgrid=True, gridcolor="#e2e8f0", tickfont=dict(color="#334155"), title_font=dict(color="#334155")),
     )
     st.plotly_chart(fig_vend, width="stretch")
