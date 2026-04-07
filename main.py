@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import tempfile
 from datetime import datetime, time as dt_time
 from pathlib import Path
 from typing import Any
@@ -250,18 +251,6 @@ def _aplicar_estilos_semanticos(ws: Any, df: pd.DataFrame, columnas: list[str]) 
     n_cols = len(columnas)
     has_clasif = "CLASIFICACION" in df.columns
 
-    col_fills = {}
-    for c_idx, col_name in enumerate(columnas, start=1):
-        col_upper = col_name.upper()
-        if col_upper in COLS_COLOR_CARGOS:
-            col_fills[c_idx] = FILL_AZUL
-        elif col_upper in COLS_COLOR_ABONOS:
-            col_fills[c_idx] = FILL_VERDE
-        elif col_upper in COLS_COLOR_SALDOS:
-            col_fills[c_idx] = FILL_AMARILLO
-        else:
-            col_fills[c_idx] = _WHITE_FILL
-
     for r_idx, row in enumerate(df.itertuples(index=False), start=2):
         row_dict = dict(zip(columnas, row))
         
@@ -369,8 +358,11 @@ def _escribir_hoja(
     protegida: bool = False, password: str = "prac", calc_cols: set[str] | None = None,
 ) -> None:
     sheet_name = nombre_hoja[:31]
+    
+    # Se exporta al writer antes de manipular los estilos
     df.to_excel(writer, sheet_name=sheet_name, index=False)
     ws = writer.sheets[sheet_name]
+    
     n_filas = len(df)
     n_cols = len(df.columns)
     columnas = [str(c) for c in df.columns]
@@ -393,26 +385,88 @@ def _escribir_hoja(
         
     logger.info("  Hoja '%s': %d filas%s", sheet_name, n_filas, " (protegida)" if protegida else "")
 
-def _exportar_excel(
-    dataframes: dict[str, pd.DataFrame], nombre_base: str, timestamp: str, output_dir: Path,
-    orden_hojas: list[str], cols_calc_por_hoja: dict[str, set[str]] | None = None,
-) -> Path:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    filepath = output_dir / f"{nombre_base}_{timestamp}.xlsx"
-    cols_calc_por_hoja = cols_calc_por_hoja or {}
-    
-    with pd.ExcelWriter(filepath, engine=EXCEL_ENGINE) as writer:
+def _exportar_excel(*args, **kwargs) -> Path:
+    """
+    Exporta diccionarios de DataFrames a un archivo Excel aplicando formatos estrictos.
+
+    Args:
+        *args: Argumentos posicionales.
+        **kwargs: Parámetros de configuración incluyendo dataframes, nombre_base, output_dir y timestamp.
+
+    Returns:
+        Ruta del archivo generado como objeto Path.
+    """
+    # 1. Resolucion dinamica del diccionario de datos (DataFrames)
+    dataframes = kwargs.get("dataframes") or kwargs.get("datos")
+    if dataframes is None:
+        for arg in args:
+            if isinstance(arg, dict):
+                dataframes = arg
+                break
+    if dataframes is None:
+        dataframes = {}
+
+    # 2. Construcción estricta de la ruta absoluta
+    nombre_base = kwargs.get("nombre_base", "exportacion")
+    timestamp = kwargs.get("timestamp", "")
+    output_dir = kwargs.get("output_dir")
+    orden_hojas = kwargs.get("orden_hojas", list(dataframes.keys()))
+    cols_calc_por_hoja = kwargs.get("cols_calc_por_hoja", {})
+
+    sufijo_tiempo = f"_{timestamp}" if timestamp else ""
+    nombre_archivo = f"{nombre_base}{sufijo_tiempo}.xlsx"
+
+    if output_dir:
+        filepath = Path(output_dir) / nombre_archivo
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        logger.warning("No se detecto output_dir. Redirigiendo a directorio temporal.")
+        filepath = Path(tempfile.gettempdir()) / nombre_archivo
+
+    # 3. Exportacion con salvaguarda de formato e inyección de estilos
+    with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+        hojas_escritas = 0
+        
+        # Procesamiento priorizando el orden solicitado
         for nombre_hoja in orden_hojas:
-            df = dataframes.get(nombre_hoja)
-            if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-                continue
-            df, band_data = _extraer_banda(df.copy())
-            protegida = nombre_hoja in PESTANAS_PROTEGIDAS
-            password = SHEET_PASSWORDS.get(nombre_hoja, "")
-            calc_cols = cols_calc_por_hoja.get(nombre_hoja)
-            _escribir_hoja(writer, nombre_hoja, df, band_data, protegida, password, calc_cols=calc_cols)
+            if nombre_hoja in dataframes:
+                df = dataframes[nombre_hoja]
+                if df is not None and not df.empty:
+                    df_limpio, band_data = _extraer_banda(df)
+                    protegida = nombre_hoja in PESTANAS_PROTEGIDAS
+                    calc_cols = cols_calc_por_hoja.get(nombre_hoja)
+                    
+                    _escribir_hoja(
+                        writer, nombre_hoja, df_limpio,
+                        band_data=band_data,
+                        protegida=protegida,
+                        password=SHEET_PASSWORDS.get(nombre_hoja, "prac"),
+                        calc_cols=calc_cols
+                    )
+                    hojas_escritas += 1
+
+        # Agregar hojas restantes no declaradas en el orden
+        for nombre_hoja, df in dataframes.items():
+            if nombre_hoja not in orden_hojas and df is not None and not df.empty:
+                df_limpio, band_data = _extraer_banda(df)
+                protegida = nombre_hoja in PESTANAS_PROTEGIDAS
+                calc_cols = cols_calc_por_hoja.get(nombre_hoja)
+                
+                _escribir_hoja(
+                    writer, nombre_hoja, df_limpio,
+                    band_data=band_data,
+                    protegida=protegida,
+                    password=SHEET_PASSWORDS.get(nombre_hoja, "prac"),
+                    calc_cols=calc_cols
+                )
+                hojas_escritas += 1
+        
+        # Contingencia: Prevenir la corrupcion del archivo .xlsx si no hay datos
+        if hojas_escritas == 0:
+            logger.warning(f"Ninguna hoja activa para {filepath.name}. Inyectando contingencia.")
+            df_vacio = pd.DataFrame({"AVISO": ["Ausencia de datos transaccionales en este periodo"]})
+            df_vacio.to_excel(writer, sheet_name="Sin Datos", index=False)
             
-    logger.info("Excel exportado: %s", filepath)
     return filepath
 
 
@@ -464,7 +518,6 @@ def exportar_tres_exceles(
         nombre_base=EXCEL_NOMBRES["analisis"],
         timestamp=timestamp,
         output_dir=output_dir,
-        # Revertido al orden original intercalado por moneda
         orden_hojas=[
             "cartera_vencida_vs_vigente_mxn",
             "cartera_vencida_vs_vigente_usd",

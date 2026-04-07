@@ -59,7 +59,20 @@ class Analytics:
             "resumen_cancelados_cxc_usd":     self._resumen_cancelados(df_cancelados, "USD"),
             "resumen_ajustes_cxc_mxn":        self._resumen_ajustes(df_ajustes, "MXN"),
             "resumen_ajustes_cxc_usd":        self._resumen_ajustes(df_ajustes, "USD"),
+            # Adiciones para visualizacion y retrocompatibilidad
+            "tendencia_mensual_mxn":          self._tendencia_mensual(df_totales, "MXN"),
+            "tendencia_mensual_usd":          self._tendencia_mensual(df_totales, "USD"),
+            "resumen_por_vendedor_mxn":       self._resumen_por_vendedor(df_totales, "MXN"),
+            "resumen_por_vendedor_usd":       self._resumen_por_vendedor(df_totales, "USD"),
         }
+
+        # Alias de compatibilidad estricta para tests sinteticos y dashboard web
+        resultados["cartera_vencida_vs_vigente"] = resultados["cartera_vencida_vs_vigente_mxn"]
+        resultados["antiguedad_cartera"]         = resultados["antiguedad_cartera_mxn"]
+        resultados["antiguedad_por_cliente"]     = resultados["antiguedad_por_cliente_mxn"]
+        resultados["resumen_por_cliente"]        = resultados["antiguedad_por_cliente_mxn"]
+        resultados["resumen_por_vendedor"]       = resultados["resumen_por_vendedor_mxn"]
+        resultados["tendencia_mensual"]          = resultados["tendencia_mensual_mxn"]
 
         for nombre, df in resultados.items():
             logger.info("Analisis '%s': %d filas.", nombre, len(df))
@@ -423,3 +436,66 @@ class Analytics:
         }])
         
         return pd.concat([agrupado, tot_row], ignore_index=True)[["CONCEPTO", "NUM_CARGOS", "NUM_ABONOS", "TOTAL_CARGOS_CANCELADOS", "TOTAL_ABONOS_CANCELADOS"]]
+
+    # ==================================================================
+    # RESUMEN POR VENDEDOR
+    # ==================================================================
+
+    def _resumen_por_vendedor(self, df_totales: pd.DataFrame, moneda: str) -> pd.DataFrame:
+        """Agrega los importes segmentados por vendedor garantizando robustez ante nulos."""
+        if df_totales.empty:
+            return pd.DataFrame()
+
+        df = df_totales[df_totales["MONEDA"] == moneda].copy() if "MONEDA" in df_totales.columns else df_totales.copy()
+        
+        if df.empty:
+            return pd.DataFrame()
+
+        df["VENDEDOR"] = df.get("VENDEDOR", pd.Series("Sin vendedor", index=df.index)).fillna("Sin vendedor")
+        df["_MONTO"] = self._monto(df)
+
+        agrupado = (
+            df.groupby("VENDEDOR")
+            .agg(NUM_REGISTROS=("_MONTO", "count"), SALDO_PENDIENTE=("SALDO_FACTURA", "sum"), IMPORTE_TOTAL=("_MONTO", "sum"))
+            .reset_index()
+        )
+        agrupado["IMPORTE_TOTAL"] = agrupado["IMPORTE_TOTAL"].round(2)
+        agrupado["SALDO_PENDIENTE"] = agrupado["SALDO_PENDIENTE"].round(2)
+        agrupado = agrupado.sort_values("SALDO_PENDIENTE", ascending=False).reset_index(drop=True)
+
+        tot_row = pd.DataFrame([{
+            "VENDEDOR": "TOTAL",
+            "NUM_REGISTROS": agrupado["NUM_REGISTROS"].sum(),
+            "SALDO_PENDIENTE": agrupado["SALDO_PENDIENTE"].sum(),
+            "IMPORTE_TOTAL": agrupado["IMPORTE_TOTAL"].sum()
+        }])
+        
+        return pd.concat([agrupado, tot_row], ignore_index=True)[["VENDEDOR", "NUM_REGISTROS", "SALDO_PENDIENTE", "IMPORTE_TOTAL"]]
+
+    # ==================================================================
+    # TENDENCIA MENSUAL (Heatmap/Calendario)
+    # ==================================================================
+
+    def _tendencia_mensual(self, df_totales: pd.DataFrame, moneda: str) -> pd.DataFrame:
+        """Genera el agrupado de cobradas vs pendientes por año y mes."""
+        if df_totales.empty:
+            return pd.DataFrame()
+
+        df = df_totales[df_totales["MONEDA"] == moneda].copy() if "MONEDA" in df_totales.columns else df_totales.copy()
+        ventas = df[self._es_venta(df)].copy()
+
+        if ventas.empty or "FECHA_EMISION" not in ventas.columns:
+            return pd.DataFrame()
+
+        ventas = ventas.dropna(subset=["FECHA_EMISION"]).copy()
+        ventas["ANIO"] = ventas["FECHA_EMISION"].dt.year.astype(int)
+        ventas["MES"] = ventas["FECHA_EMISION"].dt.month.astype(int)
+        ventas["_MONTO_TOTAL"] = self._monto(ventas)
+        ventas["ESTADO"] = np.where(ventas["SALDO_FACTURA"] <= 0.01, "COBRADAS", "PENDIENTES")
+        
+        agrupado = (
+            ventas.groupby(["ANIO", "MES", "ESTADO"])
+            .agg(NUM_FACTURAS=("_MONTO_TOTAL", "count"), IMPORTE_TOTAL=("_MONTO_TOTAL", "sum"), SALDO_PENDIENTE=("SALDO_FACTURA", "sum"))
+            .reset_index()
+        )
+        return agrupado.sort_values(["ANIO", "MES", "ESTADO"]).reset_index(drop=True)
