@@ -4,21 +4,25 @@
 # @brief        Enterprise-grade Git exclusion rules.
 # ==============================================================================
 
-# --- SISTEMA (Linux/GNOME/Windows) ---
+# --- SISTEMA (Linux/GNOME/Windows/macOS) ---
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+ehthumbs.db
 .directory
 *.tmp
 *.swp
 *~
 .fuse_hidden*
 
-# --- IDE (VS Code) ---
+# --- IDE (VS Code / PyCharm) ---
 .vscode/
 # Si prefieres compartir la configuración de VS Code con el equipo, comenta la línea de arriba y usa estas:
 #!.vscode/settings.json
 #!.vscode/tasks.json
 #!.vscode/launch.json
+.idea/
 
 # --- ENTORNO Y HERRAMIENTAS (Python, UV, Mise) ---
 __pycache__/
@@ -32,22 +36,29 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.ipynb_checkpoints/
 
-# --- CONFIGURACIÓN SENSIBLE ---
+# --- FRONTEND Y DASHBOARD (Streamlit) ---
+# Bloqueo estricto de credenciales locales de Streamlit
+.streamlit/secrets.toml
+# NOTA: .streamlit/config.toml SI debe ser rastreado por Git para forzar el tema UI.
+
+# --- CONFIGURACION SENSIBLE ---
 .env
 .env.local
 .env.*.local
-# settings.py suele ser el motor, pero si contiene credenciales hardcoded:
+# settings.py suele ser el motor, pero si contiene credenciales hardcoded (no recomendado):
 # settings.py 
 
-# --- DATOS DE AUDITORÍA Y REPORTES (Case-Insensitive) ---
+# --- DATOS DE AUDITORIA Y REPORTES (Case-Insensitive) ---
 # Bloqueamos carpetas de salida completas
 output/
 outputs/
 logs/
 *.log
 
-# Bloqueo de extensiones binarias (Regex para cubrir mayúsculas/minúsculas)
+# Bloqueo de extensiones binarias y de exportacion
+# Previene la subida accidental de reportes exportados en la raiz o subdirectorios
 *.[pP][dD][fF]
 *.[xX][lL][sS][xX]
 *.[cC][sS][vV]
@@ -60,3 +71,4 @@ logs/
 *.FDB
 *.gdb
 *.bak
+*.sqlite3
