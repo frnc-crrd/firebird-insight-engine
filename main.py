@@ -173,8 +173,10 @@ def preparar_registros_totales(df: pd.DataFrame) -> pd.DataFrame:
 def _filtrar_por_acreditar(df_totales: pd.DataFrame) -> pd.DataFrame:
     if "TIPO_IMPTE" not in df_totales.columns:
         return pd.DataFrame()
+        
     tipo_norm = df_totales["TIPO_IMPTE"].astype(str).str.strip().str.upper()
-    mask_tipo_a = tipo_norm == "A"
+    # Atrapa tanto anticipos puros (A) como devoluciones (T)
+    mask_tipo_a = tipo_norm.isin(["A", "T"])
     
     if "CANCELADO" in df_totales.columns:
         mask_activos = ~df_totales["CANCELADO"].isin(_CANCELADO_VALUES)
@@ -185,7 +187,7 @@ def _filtrar_por_acreditar(df_totales: pd.DataFrame) -> pd.DataFrame:
     if "_BAND_GROUP" in resultado.columns:
         resultado = resultado.drop(columns=["_BAND_GROUP"])
     resultado = agregar_bandas_grupo(resultado)
-    logger.info("Registros por acreditar: %d filas.", len(resultado))
+    logger.info("Registros por acreditar (Anticipos y Devoluciones): %d filas.", len(resultado))
     return resultado
 
 def _filtrar_cancelados(df_totales: pd.DataFrame) -> pd.DataFrame:
@@ -539,6 +541,16 @@ def exportar_tres_exceles(
             "kpis_limite_credito_usd",
             "kpis_morosidad_cliente_mxn",
             "kpis_morosidad_cliente_usd",
+            "tendencia_mensual_mxn",
+            "tendencia_mensual_usd",
+            "resumen_por_vendedor_mxn",
+            "resumen_por_vendedor_usd",
+            "cartera_vencida_vs_vigente",
+            "antiguedad_cartera",
+            "antiguedad_por_cliente",
+            "resumen_por_cliente",
+            "resumen_por_vendedor",
+            "tendencia_mensual"
         ],
     ))
 

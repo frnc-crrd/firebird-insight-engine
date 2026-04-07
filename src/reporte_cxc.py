@@ -2,17 +2,17 @@
 
 Toma los datos crudos del query maestro de Microsip y genera:
 
-- ``reporte_cxc``: Movimientos filtrados (sin cancelados, sin tipo A)
+- ``reporte_cxc``: Movimientos filtrados (sin cancelados, sin tipo A o T)
   con saldo por factura, saldo acumulado por cliente y metricas
   de ciclo de cobranza.
-- ``por_acreditar``: Movimientos con ``TIPO_IMPTE = 'A'`` que representan
-  anticipos o pagos pendientes de aplicar.
-- ``facturas_abiertas``: Cargos con saldo pendiente (SALDO_FACTURA > 0)
+- ``por_acreditar``: Ecosistema de anticipos (TIPO_IMPTE = 'A' y 'T')
+  que representan saldos a favor o devoluciones pendientes de aplicar.
+- ``facturas_abiertas``: Cargos con saldo pendiente (SALDO_FACTURA >= 0.01)
   mas sus abonos parciales. Agrupa cada factura con sus cobros
   aplicados mediante bandas alternas de color.
-- ``facturas_cerradas``: Cargos completamente cobrados (SALDO_FACTURA == 0)
-  mas todos sus abonos vinculados. Incluye DELTA_RECAUDO y
-  CATEGORIA_RECAUDO para analizar el comportamiento de pago.
+- ``facturas_cerradas``: Cargos completamente cobrados o sobrepagados
+  (SALDO_FACTURA < 0.01) mas todos sus abonos vinculados. Incluye
+  DELTA_RECAUDO y CATEGORIA_RECAUDO para analizar el comportamiento.
 - ``movimientos_reales_totales``: Union de facturas abiertas y cerradas
   con todas las columnas del reporte operativo, incluyendo
   SALDO_CLIENTE, ambas categorias y ambos deltas.
@@ -27,13 +27,13 @@ Logica de saldos (moneda original, sin conversion a MXN):
 
 Metricas de ciclo de cobranza (solo en filas de cargo):
     ``DELTA_RECAUDO``  = Fecha del ultimo abono menos FECHA_VENCIMIENTO.
-                         Solo para facturas pagadas (SALDO = 0).
+                         Solo para facturas pagadas (SALDO < 0.01).
                          Negativo = pago anticipado, positivo = dias
                          de retraso real.
     ``CATEGORIA_RECAUDO`` = Clasificacion del comportamiento de pago segun
                          DELTA_RECAUDO (Mapeado de settings).
     ``DELTA_MORA``     = HOY menos FECHA_VENCIMIENTO.
-                         Solo para facturas abiertas (SALDO > 0).
+                         Solo para facturas abiertas (SALDO >= 0.01).
     ``CATEGORIA_MORA`` = Clasificacion del riesgo segun DELTA_MORA
                          (Mapeado de settings).
 """
@@ -152,7 +152,6 @@ COLUMNAS_MOVIMIENTOS_TOTALES: list[str] = [
 # ======================================================================
 # FUNCION PRINCIPAL
 # ======================================================================
-
 
 def generar_reporte_cxc(df_crudo: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """Genera el reporte operativo completo de CxC."""
@@ -312,7 +311,8 @@ def _obtener_por_acreditar(df: pd.DataFrame) -> pd.DataFrame:
     if "TIPO_IMPTE" not in df.columns:
         return pd.DataFrame()
 
-    df_a = df[df["TIPO_IMPTE"] == "A"].copy()
+    # Integracion del ecosistema completo de anticipos y devoluciones
+    df_a = df[df["TIPO_IMPTE"].isin(["A", "T"])].copy()
 
     if "CANCELADO" in df_a.columns:
         df_a = df_a[~df_a["CANCELADO"].isin(_CANCELADO_VALUES)]
@@ -326,7 +326,8 @@ def _filtrar_movimientos(df: pd.DataFrame) -> pd.DataFrame:
         df_f = df_f[~df_f["CANCELADO"].isin(_CANCELADO_VALUES)]
 
     if "TIPO_IMPTE" in df_f.columns:
-        df_f = df_f[df_f["TIPO_IMPTE"] != "A"]
+        # Purga exclusiva del ciclo transaccional facturable
+        df_f = df_f[~df_f["TIPO_IMPTE"].isin(["A", "T"])]
 
     return df_f.reset_index(drop=True)
 
@@ -374,7 +375,7 @@ def _calcular_saldo_cliente(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ======================================================================
-# FUNCIONES INTERNAS — METRICAS DE CICLO (CON INTEGRACIÓN DINÁMICA)
+# FUNCIONES INTERNAS — METRICAS DE CICLO
 # ======================================================================
 
 def _calcular_metricas_ciclo(df: pd.DataFrame) -> pd.DataFrame:
@@ -389,8 +390,8 @@ def _calcular_metricas_ciclo(df: pd.DataFrame) -> pd.DataFrame:
     df["DELTA_MORA"] = np.nan
     df["CATEGORIA_MORA"] = ""
 
-    # DELTA_RECAUDO
-    pagadas = es_cargo & (df["SALDO_FACTURA"] == 0)
+    # Tolerancia estricta de punto flotante < 0.01 para mitigar fallos de base de datos
+    pagadas = es_cargo & (df["SALDO_FACTURA"].fillna(0) < 0.01)
 
     if pagadas.any() and "DOCTO_CC_ACR_ID" in df.columns and "DOCTO_CC_ID" in df.columns and "FECHA_EMISION" in df.columns:
         ultimo_abono: pd.Series = df.loc[es_abono & df["DOCTO_CC_ACR_ID"].notna()].groupby("DOCTO_CC_ACR_ID")["FECHA_EMISION"].max()
@@ -412,8 +413,8 @@ def _calcular_metricas_ciclo(df: pd.DataFrame) -> pd.DataFrame:
 
         df.loc[pagadas, "CATEGORIA_RECAUDO"] = np.select(cond_recaudo, cat_recaudo, default="")
 
-    # DELTA_MORA
-    abiertas = es_cargo & (df["SALDO_FACTURA"] > 0)
+    # Tolerancia estricta de punto flotante >= 0.01
+    abiertas = es_cargo & (df["SALDO_FACTURA"].fillna(0) >= 0.01)
 
     if abiertas.any() and "FECHA_VENCIMIENTO" in df.columns:
         mora_dias = (hoy - df.loc[abiertas, "FECHA_VENCIMIENTO"]).dt.days
@@ -465,7 +466,7 @@ def _extraer_facturas_abiertas(df: pd.DataFrame) -> pd.DataFrame:
     if "SALDO_FACTURA" not in df.columns or "TIPO_IMPTE" not in df.columns:
         return pd.DataFrame()
 
-    cargos_abiertos = df[(df["TIPO_IMPTE"] == "C") & (df["SALDO_FACTURA"] > 0)]
+    cargos_abiertos = df[(df["TIPO_IMPTE"] == "C") & (df["SALDO_FACTURA"].fillna(0) >= 0.01)]
 
     if cargos_abiertos.empty:
         return pd.DataFrame()
@@ -487,7 +488,7 @@ def _extraer_facturas_cerradas(df: pd.DataFrame) -> pd.DataFrame:
     if "SALDO_FACTURA" not in df.columns or "TIPO_IMPTE" not in df.columns:
         return pd.DataFrame()
 
-    cargos_cerrados = df[(df["TIPO_IMPTE"] == "C") & (df["SALDO_FACTURA"] == 0)]
+    cargos_cerrados = df[(df["TIPO_IMPTE"] == "C") & (df["SALDO_FACTURA"].fillna(0) < 0.01)]
 
     if cargos_cerrados.empty:
         return pd.DataFrame()
