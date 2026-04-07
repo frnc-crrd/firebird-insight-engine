@@ -381,10 +381,10 @@ class TestNivel1:
     # EXPORTACION EXCEL
     # ------------------------------------------------------------------
     def test_exportacion_excel(self) -> None:
-        _subheader("main.py - exportar_cuatro_exceles()")
+        _subheader("main.py - exportar_tres_exceles()")
         try:
             import tempfile
-            from main import exportar_cuatro_exceles
+            from main import exportar_tres_exceles
 
             cxc = {"movimientos_abiertos_cxc": pd.DataFrame({"A": [1]})}
             audit = {"calidad_datos": pd.DataFrame({"B": [2]})}
@@ -393,11 +393,11 @@ class TestNivel1:
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmp_path = Path(tmpdir)
-                archivos = exportar_cuatro_exceles(
+                archivos = exportar_tres_exceles(
                     cxc, audit, analisis, kpis, "TEST", tmp_path
                 )
 
-                self._assert(len(archivos) == 4, "Cuatro archivos independientes generados")
+                self._assert(len(archivos) == 3, "Tres archivos independientes generados")
                 self._assert(all(p.exists() for p in archivos), "Archivos fisicamente escritos")
 
         except Exception as e:
