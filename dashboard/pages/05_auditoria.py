@@ -1,8 +1,9 @@
-"""Página 5: Auditoría de Anomalías.
+# dashboard/pages/05_auditoria.py
+"""Pagina 5: Auditoria de Anomalias.
 
 Resultados de las reglas de negocio aplicadas sobre los datos crudos:
-importes atípicos, documentos sin cliente o vendedor, cancelados,
-vencimientos críticos y reporte de calidad de datos.
+importes atipicos, documentos sin cliente o vendedor, cancelados,
+vencimientos criticos y reporte de calidad de datos.
 """
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ from dashboard.data_loader import cargar_auditoria
 st.markdown(
     """
     <div class="main-header">
-        <h1>🔍 Auditoría de Anomalías</h1>
-        <p>Detección de inconsistencias y problemas de calidad en los datos de CxC</p>
+        <h1>Auditoria de Anomalias</h1>
+        <p>Deteccion de inconsistencias y problemas de calidad en los datos de CxC</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -38,10 +39,10 @@ st.markdown(
 try:
     audit = cargar_auditoria()
 except Exception as e:
-    st.error(f"❌ Error al cargar auditoría: {e}")
+    st.error(f"[ERROR] al cargar auditoria: {e}")
     st.stop()
 
-# CORRECCIÓN APLICADA: Extracción de variables ajustada a la clase AuditResult actual
+# CORRECCION APLICADA: Extraccion de variables ajustada a la clase AuditResult actual
 resumen          = audit.resumen
 atipicos         = audit.importes_atipicos
 sin_cliente      = audit.sin_tipo_cliente
@@ -51,7 +52,7 @@ venc_criticos    = audit.moras_atipicas
 calidad_datos    = audit.calidad_datos
 
 # ======================================================================
-# SECCIÓN 1: RESUMEN EJECUTIVO DE AUDITORÍA
+# SECCION 1: RESUMEN EJECUTIVO DE AUDITORIA
 # ======================================================================
 st.subheader("Resumen de Hallazgos")
 
@@ -59,24 +60,24 @@ total_hallazgos = resumen.get("total_hallazgos", 0)
 total_registros = resumen.get("total_registros", 0)
 
 if total_hallazgos == 0:
-    st.success(f"✅ Auditoría limpia — {total_registros:,} registros revisados sin hallazgos críticos.")
+    st.success(f"[OK] Auditoria limpia - {total_registros:,} registros revisados sin hallazgos criticos.")
 else:
     pct_hallazgos = (total_hallazgos / total_registros * 100) if total_registros > 0 else 0
     if pct_hallazgos < 2:
         nivel = "alert-ok"
-        icono = "✅"
-        texto = "Tasa de anomalías baja"
+        icono = "[OK]"
+        texto = "Tasa de anomalias baja"
     elif pct_hallazgos < 5:
         nivel = "alert-warning"
-        icono = "⚠️"
-        texto = "Anomalías moderadas — revisar"
+        icono = "[WARN]"
+        texto = "Anomalias moderadas - revisar"
     else:
         nivel = "alert-critico"
-        icono = "🚨"
-        texto = "Alta tasa de anomalías — acción requerida"
+        icono = "[CRITICO]"
+        texto = "Alta tasa de anomalias - accion requerida"
 
     st.markdown(
-        f'<div class="{nivel}">{icono} <strong>{texto}</strong> — '
+        f'<div class="{nivel}">{icono} <strong>{texto}</strong> - '
         f'{total_hallazgos:,} hallazgos en {total_registros:,} registros '
         f'({pct_hallazgos:.1f}%)</div>',
         unsafe_allow_html=True,
@@ -88,32 +89,32 @@ st.write("")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 hallazgos_config = [
-    (col1, "importes_atipicos",   "📊 Importes Atípicos",    resumen.get("importes_atipicos", 0)),
-    (col2, "sin_tipo_cliente",    "👤 Sin Tipo Cliente",     resumen.get("sin_tipo_cliente", 0)),
-    (col3, "sin_vendedor",        "👔 Sin Vendedor",         resumen.get("sin_vendedor", 0)),
-    (col4, "cancelados",          "❌ Cancelados",           resumen.get("cancelados", 0)),
-    (col5, "moras_atipicas",      "⏰ Moras Atípicas",       resumen.get("moras_atipicas", 0)),
+    (col1, "importes_atipicos",   "Importes Atipicos",    resumen.get("importes_atipicos", 0)),
+    (col2, "sin_tipo_cliente",    "Sin Tipo Cliente",     resumen.get("sin_tipo_cliente", 0)),
+    (col3, "sin_vendedor",        "Sin Vendedor",         resumen.get("sin_vendedor", 0)),
+    (col4, "cancelados",          "Cancelados",           resumen.get("cancelados", 0)),
+    (col5, "moras_atipicas",      "Moras Atipicas",       resumen.get("moras_atipicas", 0)),
 ]
 
 for col, clave, titulo, cantidad in hallazgos_config:
     with col:
-        color = "🔴" if cantidad > 0 else "🟢"
+        color = "[X]" if cantidad > 0 else "[OK]"
         st.metric(titulo, f"{color} {cantidad:,}")
 
 st.divider()
 
 # ======================================================================
-# SECCIÓN 2: GRÁFICA DE DISTRIBUCIÓN DE HALLAZGOS
+# SECCION 2: GRAFICA DE DISTRIBUCION DE HALLAZGOS
 # ======================================================================
 if total_hallazgos > 0:
-    st.subheader("Distribución de Hallazgos por Tipo")
+    st.subheader("Distribucion de Hallazgos por Tipo")
 
     datos_grafica = pd.DataFrame([
-        {"Tipo": "Importes Atípicos", "Cantidad": resumen.get("importes_atipicos", 0)},
+        {"Tipo": "Importes Atipicos", "Cantidad": resumen.get("importes_atipicos", 0)},
         {"Tipo": "Sin Tipo Cliente",  "Cantidad": resumen.get("sin_tipo_cliente", 0)},
         {"Tipo": "Sin Vendedor",      "Cantidad": resumen.get("sin_vendedor", 0)},
         {"Tipo": "Cancelados",        "Cantidad": resumen.get("cancelados", 0)},
-        {"Tipo": "Moras Atípicas",    "Cantidad": resumen.get("moras_atipicas", 0)},
+        {"Tipo": "Moras Atipicas",    "Cantidad": resumen.get("moras_atipicas", 0)},
     ])
     datos_grafica = datos_grafica[datos_grafica["Cantidad"] > 0]
 
@@ -135,32 +136,32 @@ if total_hallazgos > 0:
             xaxis=dict(showgrid=False),
             yaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
 # ======================================================================
-# SECCIÓN 3: DETALLE POR TIPO DE HALLAZGO
+# SECCION 3: DETALLE POR TIPO DE HALLAZGO
 # ======================================================================
 
 # Tabs para cada tipo de hallazgo (duplicados eliminado)
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📊 Importes Atípicos",
-    "👤 Sin Tipo Cliente",
-    "👔 Sin Vendedor",
-    "❌ Cancelados",
-    "⏰ Moras Atípicas",
-    "🗂️ Calidad de Datos",
+    "Importes Atipicos",
+    "Sin Tipo Cliente",
+    "Sin Vendedor",
+    "Cancelados",
+    "Moras Atipicas",
+    "Calidad de Datos",
 ])
 
 
-# ── TAB 1: IMPORTES ATÍPICOS ───────────────────────────────────────────
+# -- TAB 1: IMPORTES ATIPICOS -------------------------------------------
 with tab1:
-    st.markdown("#### Importes con Z-score elevado (outliers estadísticos)")
+    st.markdown("#### Importes con Z-score elevado (outliers estadisticos)")
     st.markdown(
-        "Un **Z-score ≥ 3** significa que el importe está a más de 3 desviaciones estándar "
-        "de la media — evento estadísticamente raro (< 0.3% en distribución normal). "
-        "Puede indicar error de captura o una transacción inusualmente grande."
+        "Un **Z-score >= 3** significa que el importe esta a mas de 3 desviaciones estandar "
+        "de la media - evento estadisticamente raro (< 0.3% en distribucion normal). "
+        "Puede indicar error de captura o una transaccion inusualmente grande."
     )
     if not atipicos.empty:
         cols_mostrar = [c for c in [
@@ -173,30 +174,30 @@ with tab1:
         if "ZSCORE_IMPORTE" in display_at.columns:
             display_at["ZSCORE_IMPORTE"] = display_at["ZSCORE_IMPORTE"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "")
 
-        st.dataframe(display_at, use_container_width=True, hide_index=True)
-        st.caption(f"{len(atipicos):,} importes atípicos detectados")
+        st.dataframe(display_at, width="stretch", hide_index=True)
+        st.caption(f"{len(atipicos):,} importes atipicos detectados")
 
-        # Mini gráfica de distribución
+        # Mini grafica de distribucion
         if "IMPORTE" in atipicos.columns and len(atipicos) > 1:
             fig_dist = px.box(
                 atipicos,
                 y="IMPORTE",
-                title="Distribución de importes atípicos",
+                title="Distribucion de importes atipicos",
                 color_discrete_sequence=["#ef4444"],
             )
             fig_dist.update_layout(
                 plot_bgcolor="white", paper_bgcolor="white",
                 margin=dict(t=40, b=20, l=10, r=10), height=250,
             )
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist, width="stretch")
     else:
-        st.success("✅ No se detectaron importes atípicos.")
+        st.success("[OK] No se detectaron importes atipicos.")
 
-# ── TAB 2: SIN TIPO CLIENTE ─────────────────────────────────────────────────
+# -- TAB 2: SIN TIPO CLIENTE -------------------------------------------------
 with tab2:
     st.markdown("#### Documentos asociados a un cliente sin tipo asignado")
     st.markdown(
-        "Afecta la clasificación del análisis. Verifique la captura en Microsip."
+        "Afecta la clasificacion del analisis. Verifique la captura en Microsip."
     )
     if not sin_cliente.empty:
         cols_mostrar = [c for c in [
@@ -205,17 +206,17 @@ with tab2:
         ] if c in sin_cliente.columns]
         st.dataframe(
             sin_cliente[cols_mostrar],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:
-        st.success("✅ Todos los clientes tienen tipo asignado.")
+        st.success("[OK] Todos los clientes tienen tipo asignado.")
         
-# ── TAB 3: SIN VENDEDOR ─────────────────────────────────────────────────
+# -- TAB 3: SIN VENDEDOR -------------------------------------------------
 with tab3:
     st.markdown("#### Documentos asociados a un cliente sin vendedor asignado")
     st.markdown(
-        "Afecta los reportes y gráficas de la fuerza de ventas. Verifique la captura en Microsip."
+        "Afecta los reportes y graficas de la fuerza de ventas. Verifique la captura en Microsip."
     )
     if not sin_vendedor.empty:
         cols_mostrar = [c for c in [
@@ -224,18 +225,18 @@ with tab3:
         ] if c in sin_vendedor.columns]
         st.dataframe(
             sin_vendedor[cols_mostrar],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:
-        st.success("✅ Todos los clientes tienen vendedor asignado.")
+        st.success("[OK] Todos los clientes tienen vendedor asignado.")
 
-# ── TAB 4: CANCELADOS ──────────────────────────────────────────────────
+# -- TAB 4: CANCELADOS --------------------------------------------------
 with tab4:
     st.markdown("#### Documentos cancelados en Microsip")
     st.markdown(
-        "Estos documentos están marcados como cancelados en el sistema. "
-        "El pipeline los excluye de los cálculos, pero se listan aquí para referencia."
+        "Estos documentos estan marcados como cancelados en el sistema. "
+        "El pipeline los excluye de los calculos, pero se listan aqui para referencia."
     )
     if not cancelados.empty:
         cols_mostrar = [c for c in [
@@ -245,20 +246,20 @@ with tab4:
         display_can = cancelados[cols_mostrar].copy()
         if "IMPORTE" in display_can.columns:
             display_can["IMPORTE"] = display_can["IMPORTE"].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
-        st.dataframe(display_can, use_container_width=True, hide_index=True)
+        st.dataframe(display_can, width="stretch", hide_index=True)
         st.caption(f"{len(cancelados):,} documentos cancelados")
     else:
-        st.success("✅ No se encontraron documentos cancelados.")
+        st.success("[OK] No se encontraron documentos cancelados.")
 
-# ── TAB 5: MORAS ATÍPICAS ───────────────────────────────────────
+# -- TAB 5: MORAS ATIPICAS ---------------------------------------
 with tab5:
     st.markdown("#### Cargos con mora significativamente alta (Z-Score Elevado)")
     st.markdown(
-        "Estas facturas no solo están vencidas, sino que su retraso es "
-        "estadísticamente anormal comparado con la mora del resto de la cartera."
+        "Estas facturas no solo estan vencidas, sino que su retraso es "
+        "estadisticamente anormal comparado con la mora del resto de la cartera."
     )
     if not venc_criticos.empty:
-        # Agrupar por cliente para visualización
+        # Agrupar por cliente para visualizacion
         if "NOMBRE_CLIENTE" in venc_criticos.columns and "IMPORTE" in venc_criticos.columns:
             resumen_vc = (
                 venc_criticos.groupby("NOMBRE_CLIENTE")
@@ -273,9 +274,9 @@ with tab5:
 
             g_col1, g_col2 = st.columns(2)
             with g_col1:
-                st.metric("Clientes con mora atípica", f"{resumen_vc['NOMBRE_CLIENTE'].nunique():,}")
+                st.metric("Clientes con mora atipica", f"{resumen_vc['NOMBRE_CLIENTE'].nunique():,}")
             with g_col2:
-                st.metric("Monto en mora atípica", f"${venc_criticos['IMPORTE'].sum():,.2f}")
+                st.metric("Monto en mora atipica", f"${venc_criticos['IMPORTE'].sum():,.2f}")
 
             st.write("")
 
@@ -283,13 +284,13 @@ with tab5:
             display_vc["IMPORTE_TOTAL"] = display_vc["IMPORTE_TOTAL"].apply(lambda x: f"${x:,.2f}")
             st.dataframe(
                 display_vc,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "NOMBRE_CLIENTE": st.column_config.TextColumn("Cliente"),
                     "NUM_DOCS":       st.column_config.NumberColumn("Documentos", format="%d"),
                     "IMPORTE_TOTAL":  st.column_config.TextColumn("Importe en Riesgo"),
-                    "DIAS_MAX":       st.column_config.NumberColumn("Días Mora Máx", format="%d"),
+                    "DIAS_MAX":       st.column_config.NumberColumn("Dias Mora Max", format="%d"),
                 },
             )
 
@@ -298,16 +299,16 @@ with tab5:
                 "NOMBRE_CLIENTE", "FOLIO", "CONCEPTO", "FECHA_VENCIMIENTO",
                 "IMPORTE", "DELTA_MORA", "ZSCORE_DELTA_MORA",
             ] if c in venc_criticos.columns]
-            st.dataframe(venc_criticos[cols_mostrar], use_container_width=True, hide_index=True)
+            st.dataframe(venc_criticos[cols_mostrar], width="stretch", hide_index=True)
     else:
-        st.success("✅ No hay moras atípicas detectadas.")
+        st.success("[OK] No hay moras atipicas detectadas.")
 
-# ── TAB 6: CALIDAD DE DATOS ────────────────────────────────────────────
+# -- TAB 6: CALIDAD DE DATOS --------------------------------------------
 with tab6:
     st.markdown("#### Reporte de calidad por columna")
     st.markdown(
         "Estado de completitud de cada columna del dataset. "
-        "Columnas con alto porcentaje de nulos pueden indicar configuración "
+        "Columnas con alto porcentaje de nulos pueden indicar configuracion "
         "incompleta en Microsip o campos no utilizados."
     )
     if not calidad_datos.empty:
@@ -317,7 +318,7 @@ with tab6:
 
         st.dataframe(
             display_cd,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "COLUMNA":         st.column_config.TextColumn("Columna"),
@@ -325,7 +326,7 @@ with tab6:
                 "TOTAL_REGISTROS": st.column_config.NumberColumn("Total", format="%d"),
                 "NULOS":           st.column_config.NumberColumn("Nulos", format="%d"),
                 "PCT_NULOS":       st.column_config.TextColumn("% Nulos"),
-                "VALORES_UNICOS":  st.column_config.NumberColumn("Valores Únicos", format="%d"),
+                "VALORES_UNICOS":  st.column_config.NumberColumn("Valores Unicos", format="%d"),
             },
         )
 
@@ -334,7 +335,7 @@ with tab6:
             criticas = calidad_datos[calidad_datos["NULOS"] / calidad_datos["TOTAL_REGISTROS"] > 0.5]
             if not criticas.empty:
                 st.warning(
-                    f"⚠️ {len(criticas)} columna(s) con más del 50% de valores nulos: "
+                    f"[WARN] {len(criticas)} columna(s) con mas del 50% de valores nulos: "
                     + ", ".join(f"`{c}`" for c in criticas["COLUMNA"].tolist())
                 )
     else:

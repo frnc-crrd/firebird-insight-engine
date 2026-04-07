@@ -1,8 +1,9 @@
-"""Página 4: KPIs Estratégicos.
+# dashboard/pages/04_kpis.py
+"""Pagina 4: KPIs Estrategicos.
 
-Vista profunda de los cinco indicadores clave: DSO, CEI, Índice de
-Morosidad, análisis Pareto/ABC y utilización de límite de crédito.
-Incluye interpretación textual de cada KPI y gráficas de gauge.
+Vista profunda de los cinco indicadores clave: DSO, CEI, Indice de
+Morosidad, analisis Pareto/ABC y utilizacion de limite de credito.
+Incluye interpretacion textual de cada KPI y graficas de gauge.
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ from config.settings import KPI_PERIODO_DIAS
 st.markdown(
     """
     <div class="main-header">
-        <h1>🎯 KPIs Estratégicos de Cobranza</h1>
-        <p>Indicadores clave para evaluación estratégica de la gestión de cuentas por cobrar</p>
+        <h1>KPIs Estrategicos de Cobranza</h1>
+        <p>Indicadores clave para evaluacion estrategica de la gestion de cuentas por cobrar</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -40,7 +41,7 @@ st.markdown(
 try:
     kpis_data = cargar_kpis()
 except Exception as e:
-    st.error(f"❌ Error al cargar datos: {e}")
+    st.error(f"[ERROR] al cargar datos: {e}")
     st.stop()
 
 kpis_resumen      = kpis_data.get("kpis_resumen", pd.DataFrame())
@@ -48,7 +49,7 @@ concentracion     = kpis_data.get("kpis_concentracion", pd.DataFrame())
 limite_credito    = kpis_data.get("kpis_limite_credito", pd.DataFrame())
 morosidad_cliente = kpis_data.get("kpis_morosidad_cliente", pd.DataFrame())
 
-st.caption(f"Período de análisis: últimos {KPI_PERIODO_DIAS} días")
+st.caption(f"Periodo de analisis: ultimos {KPI_PERIODO_DIAS} dias")
 st.divider()
 
 
@@ -66,21 +67,7 @@ def _get_kpi_row(nombre: str) -> dict:
 def _gauge(valor: float, min_val: float, max_val: float, umbral_ok: float,
            umbral_warn: float, titulo: str, unidad: str,
            invertir: bool = False) -> go.Figure:
-    """Crea una gráfica tipo gauge (velocímetro) con Plotly.
-
-    Args:
-        valor:       Valor actual del KPI.
-        min_val:     Valor mínimo de la escala.
-        max_val:     Valor máximo de la escala.
-        umbral_ok:   Límite superior de la zona verde.
-        umbral_warn: Límite superior de la zona amarilla.
-        titulo:      Título del gauge.
-        unidad:      Unidad de medida mostrada en el valor.
-        invertir:    Si True, mayor valor = mejor (ej: CEI).
-
-    Returns:
-        Figura de Plotly.
-    """
+    """Crea una grafica tipo gauge (velocimetro) con Plotly."""
     if not invertir:
         # Menor es mejor (DSO, Morosidad)
         pasos = [
@@ -121,9 +108,9 @@ def _gauge(valor: float, min_val: float, max_val: float, umbral_ok: float,
 
 
 # ======================================================================
-# SECCIÓN 1: DSO
+# SECCION 1: DSO
 # ======================================================================
-st.subheader("DSO — Days Sales Outstanding")
+st.subheader("DSO - Days Sales Outstanding")
 
 dso_row = _get_kpi_row("DSO")
 dso_val = float(dso_row.get("VALOR", 0))
@@ -132,34 +119,34 @@ dso_col1, dso_col2 = st.columns([1, 2])
 
 with dso_col1:
     st.plotly_chart(
-        _gauge(dso_val, 0, 120, 45, 70, "DSO", "días", invertir=False),
-        use_container_width=True,
+        _gauge(dso_val, 0, 120, 45, 70, "DSO", "dias", invertir=False),
+        width="stretch",
     )
 
 with dso_col2:
-    st.markdown("#### ¿Qué mide el DSO?")
+    st.markdown("#### ¿Que mide el DSO?")
     st.markdown(
-        "Los **días promedio que tarda la empresa en convertir sus ventas a crédito en efectivo**. "
+        "Los **dias promedio que tarda la empresa en convertir sus ventas a credito en efectivo**. "
         "Un DSO alto indica lentitud en cobranza o clientes con problemas de pago."
     )
 
     col_a, col_b, col_c = st.columns(3)
     with col_a:
-        st.markdown('<div class="alert-ok">✅ <strong>&lt; 45 días</strong><br>Cobranza eficiente</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-ok">[OK] <strong>&lt; 45 dias</strong><br>Cobranza eficiente</div>', unsafe_allow_html=True)
     with col_b:
-        st.markdown('<div class="alert-warning">⚠️ <strong>45-70 días</strong><br>Requiere atención</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-warning">[WARN] <strong>45-70 dias</strong><br>Requiere atencion</div>', unsafe_allow_html=True)
     with col_c:
-        st.markdown('<div class="alert-critico">🚨 <strong>&gt; 70 días</strong><br>Problema crítico</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-critico">[CRITICO] <strong>&gt; 70 dias</strong><br>Problema critico</div>', unsafe_allow_html=True)
 
     if dso_row.get("INTERPRETACION"):
-        st.info(f"📊 {dso_row['INTERPRETACION']}")
+        st.info(f"{dso_row['INTERPRETACION']}")
 
 st.divider()
 
 # ======================================================================
-# SECCIÓN 2: CEI
+# SECCION 2: CEI
 # ======================================================================
-st.subheader("CEI — Collection Effectiveness Index")
+st.subheader("CEI - Collection Effectiveness Index")
 
 cei_row = _get_kpi_row("CEI")
 cei_val = float(cei_row.get("VALOR", 0))
@@ -169,33 +156,33 @@ cei_col1, cei_col2 = st.columns([1, 2])
 with cei_col1:
     st.plotly_chart(
         _gauge(cei_val, 0, 100, 80, 60, "CEI", "%", invertir=True),
-        use_container_width=True,
+        width="stretch",
     )
 
 with cei_col2:
-    st.markdown("#### ¿Qué mide el CEI?")
+    st.markdown("#### ¿Que mide el CEI?")
     st.markdown(
-        "El **porcentaje del total cobrable que efectivamente se recuperó** en el período. "
-        "Complementa al DSO: el DSO dice *qué tan rápido* cobras, el CEI dice *qué tan bien* cobras."
+        "El **porcentaje del total cobrable que efectivamente se recupero** en el periodo. "
+        "Complementa al DSO: el DSO dice *que tan rapido* cobras, el CEI dice *que tan bien* cobras."
     )
 
     col_a, col_b, col_c = st.columns(3)
     with col_a:
-        st.markdown('<div class="alert-ok">✅ <strong>≥ 80%</strong><br>Eficiencia aceptable</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-ok">[OK] <strong>≥ 80%</strong><br>Eficiencia aceptable</div>', unsafe_allow_html=True)
     with col_b:
-        st.markdown('<div class="alert-warning">⚠️ <strong>60-79%</strong><br>Mejorable</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-warning">[WARN] <strong>60-79%</strong><br>Mejorable</div>', unsafe_allow_html=True)
     with col_c:
-        st.markdown('<div class="alert-critico">🚨 <strong>&lt; 60%</strong><br>Problemas serios</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-critico">[CRITICO] <strong>&lt; 60%</strong><br>Problemas serios</div>', unsafe_allow_html=True)
 
     if cei_row.get("INTERPRETACION"):
-        st.info(f"📊 {cei_row['INTERPRETACION']}")
+        st.info(f"{cei_row['INTERPRETACION']}")
 
 st.divider()
 
 # ======================================================================
-# SECCIÓN 3: ÍNDICE DE MOROSIDAD
+# SECCION 3: INDICE DE MOROSIDAD
 # ======================================================================
-st.subheader("Índice de Morosidad")
+st.subheader("Indice de Morosidad")
 
 mor_row = _get_kpi_row("Morosidad")
 mor_val = float(mor_row.get("VALOR", 0))
@@ -205,41 +192,41 @@ mor_col1, mor_col2 = st.columns([1, 2])
 with mor_col1:
     st.plotly_chart(
         _gauge(mor_val, 0, 100, 10, 25, "Morosidad", "%", invertir=False),
-        use_container_width=True,
+        width="stretch",
     )
 
 with mor_col2:
-    st.markdown("#### ¿Qué mide el Índice de Morosidad?")
+    st.markdown("#### ¿Que mide el Indice de Morosidad?")
     st.markdown(
-        "La **proporción de la cartera cuya fecha de vencimiento ya pasó**. "
+        "La **proporcion de la cartera cuya fecha de vencimiento ya paso**. "
         "Valores por encima del 25% indican cartera deteriorada que requiere acciones correctivas."
     )
 
     col_a, col_b, col_c, col_d = st.columns(4)
     with col_a:
-        st.markdown('<div class="alert-ok">✅ <strong>&lt; 10%</strong><br>Sana</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-ok">[OK] <strong>&lt; 10%</strong><br>Sana</div>', unsafe_allow_html=True)
     with col_b:
-        st.markdown('<div class="alert-warning">⚠️ <strong>10-25%</strong><br>Atención</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-warning">[WARN] <strong>10-25%</strong><br>Atencion</div>', unsafe_allow_html=True)
     with col_c:
-        st.markdown('<div class="alert-critico">🚨 <strong>&gt; 25%</strong><br>Deteriorada</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-critico">[CRITICO] <strong>&gt; 25%</strong><br>Deteriorada</div>', unsafe_allow_html=True)
     with col_d:
-        st.markdown('<div class="alert-critico">🆘 <strong>&gt; 50%</strong><br>Crisis</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-critico">[CRISIS] <strong>&gt; 50%</strong><br>Crisis</div>', unsafe_allow_html=True)
 
     if mor_row.get("INTERPRETACION"):
-        st.info(f"📊 {mor_row['INTERPRETACION']}")
+        st.info(f"{mor_row['INTERPRETACION']}")
 
 st.divider()
 
 # ======================================================================
-# SECCIÓN 4: ANÁLISIS PARETO / ABC
+# SECCION 4: ANALISIS PARETO / ABC
 # ======================================================================
-st.subheader("Concentración de Cartera — Análisis Pareto 80/20")
+st.subheader("Concentracion de Cartera - Analisis Pareto 80/20")
 
 if not concentracion.empty:
     pareto_col1, pareto_col2 = st.columns([1.5, 1])
 
     with pareto_col1:
-        # Gráfica de curva de Pareto
+        # Grafica de curva de Pareto
         df_pareto = concentracion.copy()
         df_pareto["RANK"] = range(1, len(df_pareto) + 1)
 
@@ -254,7 +241,7 @@ if not concentracion.empty:
             opacity=0.8,
             yaxis="y1",
         ))
-        # Línea de % acumulado
+        # Linea de % acumulado
         fig_pareto.add_trace(go.Scatter(
             x=top20["NOMBRE_CLIENTE"],
             y=top20["PCT_ACUMULADO"],
@@ -263,7 +250,7 @@ if not concentracion.empty:
             mode="lines+markers",
             yaxis="y2",
         ))
-        # Línea de referencia 80%
+        # Linea de referencia 80%
         fig_pareto.add_hline(
             y=80, line_dash="dash", line_color="#22c55e",
             annotation_text="80%", yref="y2",
@@ -284,7 +271,7 @@ if not concentracion.empty:
             margin=dict(t=40, b=100, l=10, r=60),
             height=380,
         )
-        st.plotly_chart(fig_pareto, use_container_width=True)
+        st.plotly_chart(fig_pareto, width="stretch")
 
     with pareto_col2:
         # Resumen ABC
@@ -305,10 +292,10 @@ if not concentracion.empty:
                 pct_c = clientes / total_clientes * 100 if total_clientes > 0 else 0
 
                 desc = {
-                    "A": ("🔴", "Top 80% del saldo — máxima prioridad"),
-                    "B": ("🟡", "Siguiente 15% — seguimiento regular"),
-                    "C": ("🟢", "Último 5% — gestión estándar"),
-                }.get(clase, ("⚪", ""))
+                    "A": ("[A]", "Top 80% del saldo - maxima prioridad"),
+                    "B": ("[B]", "Siguiente 15% - seguimiento regular"),
+                    "C": ("[C]", "Ultimo 5% - gestion estandar"),
+                }.get(clase, ("", ""))
 
                 icono, descripcion = desc
                 st.markdown(
@@ -321,8 +308,8 @@ if not concentracion.empty:
                 )
                 st.divider()
 
-    # Tabla completa de concentración
-    with st.expander("Ver tabla completa de concentración"):
+    # Tabla completa de concentracion
+    with st.expander("Ver tabla completa de concentracion"):
         display_conc = concentracion.copy()
         if "SALDO" in display_conc.columns:
             display_conc["SALDO"] = display_conc["SALDO"].apply(lambda x: f"${x:,.2f}")
@@ -331,15 +318,15 @@ if not concentracion.empty:
         if "PCT_ACUMULADO" in display_conc.columns:
             display_conc["PCT_ACUMULADO"] = display_conc["PCT_ACUMULADO"].apply(lambda x: f"{x:.2f}%")
 
-        st.dataframe(display_conc, use_container_width=True, hide_index=True)
+        st.dataframe(display_conc, width="stretch", hide_index=True)
 
 else:
-    st.info("Sin datos de concentración disponibles.")
+    st.info("Sin datos de concentracion disponibles.")
 
 st.divider()
 
 # ======================================================================
-# SECCIÓN 5: MOROSIDAD POR CLIENTE — TOP RIESGOS
+# SECCION 5: MOROSIDAD POR CLIENTE - TOP RIESGOS
 # ======================================================================
 st.subheader("Top 10 Clientes por Saldo Vencido")
 
@@ -357,7 +344,7 @@ if not morosidad_cliente.empty and "SALDO_VENCIDO" in morosidad_cliente.columns:
             labels={
                 "SALDO_VENCIDO": "Saldo Vencido ($)",
                 "NOMBRE_CLIENTE": "",
-                "DIAS_VENCIDO_MAX": "Días vencido",
+                "DIAS_VENCIDO_MAX": "Dias vencido",
             },
             text="SALDO_VENCIDO",
         )
@@ -367,11 +354,11 @@ if not morosidad_cliente.empty and "SALDO_VENCIDO" in morosidad_cliente.columns:
             paper_bgcolor="white",
             yaxis=dict(autorange="reversed"),
             margin=dict(t=20, b=20, l=150, r=120),
-            coloraxis_colorbar=dict(title="Días<br>vencido"),
+            coloraxis_colorbar=dict(title="Dias<br>vencido"),
             height=400,
         )
-        st.plotly_chart(fig_riesgo, use_container_width=True)
+        st.plotly_chart(fig_riesgo, width="stretch")
     else:
-        st.success("✅ No hay clientes con saldo vencido.")
+        st.success("[OK] No hay clientes con saldo vencido.")
 else:
     st.info("Sin datos de morosidad por cliente disponibles.")
